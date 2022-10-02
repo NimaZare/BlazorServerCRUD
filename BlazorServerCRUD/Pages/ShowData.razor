@@ -1,0 +1,251 @@
+﻿@page "/data"
+
+@inherits OwningComponentBase<UserServices>
+@inject IJSRuntime js
+
+<h3>Show Database Data</h3>
+<hr />
+<button class="btn btn-primary" @onclick="ShowPopup">Add New User</button>
+@if (popup)
+{
+	<div class="modal" tabindex="-1" style="display:block;">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Add New User</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="ClosePopup"></button>
+				</div>
+				<EditForm Model="userNew" OnValidSubmit="AddUserAsync">
+					<div class="modal-body">
+						<table border="1">
+							<tr>
+								<td>New UserName</td>
+								<td><input type="text" placeholder="Enter Your Username" @bind="userNew.UserName" /></td>
+							</tr>
+							<tr>
+								<td>Password</td>
+								<td><input type="text" placeholder="Enter Your Password" @bind="userNew.Password" /></td>
+							</tr>
+						</table>
+					</div>
+					<div class="modal-footer">
+						@if (userIsGoingToUpdate is true)
+						{
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @onclick="ClosePopup">Close</button>
+							<button type="submit" class="btn btn-primary" @onclick="ClosePopup">Update</button>
+						}
+						else
+						{
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @onclick="ClosePopup">Close</button>
+							<button type="submit" class="btn btn-primary" @onclick="ClosePopup">Add User</button>
+						}
+					</div>
+				</EditForm>
+			</div>
+		</div>
+	</div>
+}
+
+@if (warningPopup)
+{
+	<div class="modal" tabindex="-1" style="display:block;">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content" style="background: #B60000;">
+				<div class="modal-header text-light">
+					<h5 class="modal-title fw-bold">Delete User !</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="DeleteQuestionResultNo"></button>
+				</div>
+				<div class="modal-body">
+					<p class="card-text text-light fw-bold">Are you sure to want to delete this user ?</p>
+				</div>
+				<div class="modal-footer">
+					<button class="btn btn-outline-light fw-bold" @onclick="(() => DeleteQuestionResultYesAsync(userForDelete))">Yes</button>
+					<button class="btn btn-outline-light fw-bold" @onclick="DeleteQuestionResultNo">No</button>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+<hr />
+@try
+{
+	<table class="table">
+		<tr>
+			<th>User ID</th>
+			<th>User Name</th>
+			<th>User Password Protected</th>
+		</tr>
+		@foreach (var item in AllUsers)
+		{
+			<tr>
+				<td>@item.UserId</td>
+				<td>@item.UserName</td>
+				<td>@item.Password</td>
+				<td>
+					<button type="button" class="btn btn-outline-info" @onclick="(()=> EditUser(item))">Edit</button>
+					<button type="button" class="btn btn-outline-danger" @onclick="(()=> ShowDeleteQuestion(item))">Delete</button>
+				</td>
+			</tr>
+		}
+	</table>
+}
+catch
+{
+	<p>Not Found Data !</p>
+}
+
+@code {
+
+	List<User>? AllUsers;
+	User? userNew;
+	User? userForDelete;
+	bool popup = false;
+	bool warningPopup = false;
+	bool userIsGoingToUpdate = false;
+	bool userDelete = false;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await RefreshData();
+	}
+
+	private void ShowPopup()
+	{
+		popup = true;
+		userNew = new();
+	}
+
+	private void ClosePopup()
+	{
+		popup = false;
+	}
+
+	private async void AddUserAsync()
+	{
+		try
+		{
+			if (userNew is not null)
+			{
+				if (userIsGoingToUpdate is true)
+				{
+					UpdateUser(userNew);
+					await RefreshData();
+					StateHasChanged();
+				}
+				else
+				{
+					await Service.AddUserAsync(userNew);
+					await RefreshData();
+					StateHasChanged();
+				}
+			}
+			else
+			{
+				popup = false;
+				userNew = null;
+				await js.InvokeVoidAsync("alert", "User Data Is Null!");
+			}
+		}
+		catch
+		{
+			popup = false;
+			userNew = null;
+			await js.InvokeVoidAsync("alert", "Add User Data Failed!");
+		}
+	}
+
+	private void EditUser(User userToEdit)
+	{
+		userNew = userToEdit;
+		userIsGoingToUpdate = true;
+		popup = true;
+	}
+
+	private async void UpdateUser(User userToUpdate)
+	{
+		try
+		{
+			var result = Service.UpdateUser(userToUpdate);
+			if (result is true)
+			{
+				userIsGoingToUpdate = false;
+				popup = false;
+				userNew = null;
+				await RefreshData();
+				StateHasChanged();
+			}
+			else
+			{
+				popup = false;
+				userIsGoingToUpdate = false;
+				userNew = null;
+				await js.InvokeVoidAsync("alert", "Update Data Failed!");
+			}
+		}
+		catch
+		{
+			popup = false;
+			userIsGoingToUpdate = false;
+			userNew = null;
+			await js.InvokeVoidAsync("alert", "Update Data Failed!");
+		}
+	}
+
+	private void ShowDeleteQuestion(User user)
+	{
+		warningPopup = true;
+		userForDelete = user;
+	}
+
+	private async void DeleteQuestionResultYesAsync(User user)
+	{
+		userDelete = true;
+		await DeleteUserAsync(user);
+	}
+
+	private void DeleteQuestionResultNo()
+	{
+		userDelete = false;
+		warningPopup = false;
+		userForDelete = null;
+	}
+
+	private async Task DeleteUserAsync(User userToDelete)
+	{
+		try
+		{
+			if (userDelete is true)
+			{
+				var result = Service.DeleteUser(userToDelete);
+				if (result is true)
+				{
+					DeleteQuestionResultNo();
+					await RefreshData();
+					StateHasChanged();
+				}
+				else
+				{
+					await js.InvokeVoidAsync("alert", "Delete Data Failed!");
+					await RefreshData();
+					StateHasChanged();
+				}
+			}
+		}
+		catch
+		{
+			await js.InvokeVoidAsync("alert", "Delete Data Failed!");
+			await RefreshData();
+			StateHasChanged();
+		}
+	}
+
+	private async Task RefreshData()
+	{
+		AllUsers = new();
+		var users = await Service.GetUsersAsync();
+		if (users is not null)
+		{
+			AllUsers = users;
+		}
+	}
+}
